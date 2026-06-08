@@ -318,6 +318,7 @@ function FirstPersonWalkthrough({ onCheckpointChange }: { onCheckpointChange: (c
   const lookTarget = useRef(START_CAMERA_TARGET.clone());
   const wheelReady = useRef(true);
   const nextWheelAllowedAt = useRef(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const transition = useRef({
     active: false,
     elapsed: 0,
@@ -395,26 +396,56 @@ function FirstPersonWalkthrough({ onCheckpointChange }: { onCheckpointChange: (c
       }
     };
 
-    const handleWheel = (event: WheelEvent) => {
-      event.preventDefault();
-
+    const moveCheckpoint = (direction: number) => {
       const now = performance.now();
 
-      if (now < nextWheelAllowedAt.current || !wheelReady.current || transition.current.active) return;
-      if (Math.abs(event.deltaY) < 12) return;
+      if (now < nextWheelAllowedAt.current || !wheelReady.current || transition.current.active) return false;
 
-      const direction = event.deltaY > 0 ? 1 : -1;
       const nextIndex = THREE.MathUtils.clamp(
         checkpointIndex.current + direction,
         0,
         CAMERA_CHECKPOINTS.length - 1
       );
 
-      if (nextIndex === checkpointIndex.current) return;
+      if (nextIndex === checkpointIndex.current) return false;
 
       nextWheelAllowedAt.current = now + 900;
       wheelReady.current = false;
       startCheckpointTransition(nextIndex);
+      return true;
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+
+      if (Math.abs(event.deltaY) < 12) return;
+      moveCheckpoint(event.deltaY > 0 ? 1 : -1);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      touchStart.current = { x: touch.clientX, y: touch.clientY };
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const start = touchStart.current;
+      const touch = event.changedTouches[0];
+      touchStart.current = null;
+
+      if (!start || !touch) return;
+
+      const deltaX = touch.clientX - start.x;
+      const deltaY = touch.clientY - start.y;
+
+      if (Math.abs(deltaY) < 42 || Math.abs(deltaY) < Math.abs(deltaX) * 1.15) return;
+
+      moveCheckpoint(deltaY < 0 ? 1 : -1);
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -423,6 +454,10 @@ function FirstPersonWalkthrough({ onCheckpointChange }: { onCheckpointChange: (c
     window.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mousedown", handlePointerDown);
     canvas.addEventListener("wheel", handleWheel, { passive: false });
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("touchend", handleTouchEnd);
+    canvas.addEventListener("touchcancel", handleTouchEnd);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
@@ -431,6 +466,10 @@ function FirstPersonWalkthrough({ onCheckpointChange }: { onCheckpointChange: (c
       window.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mousedown", handlePointerDown);
       canvas.removeEventListener("wheel", handleWheel);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("touchend", handleTouchEnd);
+      canvas.removeEventListener("touchcancel", handleTouchEnd);
     };
   }, [camera, gl]);
 
