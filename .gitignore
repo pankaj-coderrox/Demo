@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+
+*.log
+architecture-*.png
+
+.chrome-*/
+.chrome-shot/
+.chrome-verify/
+
+.env*
+!.env.example
